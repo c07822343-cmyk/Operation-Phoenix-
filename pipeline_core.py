@@ -102,7 +102,7 @@ class PhoenixPipeline:
                             "Content-Type": "application/json"
                         },
                         json={
-                            "model": GROQ_MODEL,
+                            "model": "llama-3.3-70b-versatile",
                             "messages": [
                                 {
                                     "role": "system",
@@ -775,8 +775,7 @@ class PhoenixPipeline:
         except Exception as e:
             print(f"[Thumb] Error: {e}")
         return self._pillow_thumbnail(topic, out)
-
-    def _build_video(self, scenes, voice_path,
+            def _build_video(self, scenes, voice_path,
                       output_path, vdir,
                       script_text, key_words):
         clips = []

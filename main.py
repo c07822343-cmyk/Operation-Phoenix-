@@ -7,10 +7,6 @@ def startup():
     print("\n╔══════════════════════════════════════╗")
     print("║      Project Phoenix Starting        ║")
     print("╚══════════════════════════════════════╝\n")
-    subprocess.run(
-        ['apt-get', 'install', '-y', 'ffmpeg'],
-        capture_output=True
-    )
     pkgs = ['flask', 'requests', 'edge-tts', 'Pillow']
     for p in pkgs:
         subprocess.run(

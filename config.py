@@ -8,7 +8,7 @@ TTS_VOICE = "en-US-GuyNeural"
 TTS_RATE = "+8%"
 TTS_PITCH = "-2Hz"
 
-GROQ_MODEL = "llama-3.1-70b-versatile"
+GROQ_MODEL = "llama-3.3-70b-versatile"
 GROQ_MIN_GAP = 2.5
 GROQ_MAX_RETRIES = 5
 

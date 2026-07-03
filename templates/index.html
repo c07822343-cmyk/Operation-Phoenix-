@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Phoenix — Shorts Factory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <span class="fire">🔥</span>
+    <div>
+      <h1>Project Phoenix</h1>
+      <p>Faceless Shorts Factory</p>
+    </div>
+  </div>
+  <div class="cost-badge">$0.00 Forever</div>
+</div>
+
+<div class="card" id="niche-card">
+  <h2>What Kind of Videos Do You Want?</h2>
+  <p class="card-sub">Tell the AI your niche. It handles everything else.</p>
+
+  <div class="form-group">
+    <label>Your Niche or Topic</label>
+    <textarea id="niche-input" rows="4" placeholder="Examples:&#10;- Random mind-blowing facts&#10;- True crime stories under 60 seconds&#10;- Space and universe facts&#10;- History nobody taught you"></textarea>
+  </div>
+
+  <div class="form-group">
+    <label>Reference YouTube Channels or Videos (Optional)</label>
+    <textarea id="references-input" rows="3" placeholder="Paste YouTube links for style inspiration. One per line.&#10;https://youtube.com/@SomeChannel&#10;https://youtube.com/watch?v=example"></textarea>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group">
+      <label>Content Tone</label>
+      <select id="tone-select">
+        <option value="shocking and dramatic">Shocking and dramatic</option>
+        <option value="educational and calm">Educational and calm</option>
+        <option value="dark and mysterious">Dark and mysterious</option>
+        <option value="fast and energetic">Fast and energetic</option>
+        <option value="funny and sarcastic">Funny and sarcastic</option>
+        <option value="unsettling and creepy">Unsettling and creepy</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Target Audience</label>
+      <select id="audience-select">
+        <option value="everyone">Everyone</option>
+        <option value="people who think they know everything">People who think they know everything</option>
+        <option value="night owl insomniacs">Night owl insomniacs</option>
+        <option value="students and curious minds">Students and curious minds</option>
+        <option value="true crime fans">True crime fans</option>
+        <option value="science nerds">Science nerds</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Video Styles</label>
+    <div class="checkbox-grid" id="style-types">
+      <label><input type="checkbox" value="single shocking fact" checked> Single shocking fact (15-30s)</label>
+      <label><input type="checkbox" value="comparison that breaks your brain" checked> Comparison that breaks your brain</label>
+      <label><input type="checkbox" value="common misconception corrected" checked> Common misconception corrected</label>
+      <label><input type="checkbox" value="timeline collapse same era different worlds" checked> Timeline collapse</label>
+      <label><input type="checkbox" value="biological body horror fact" checked> Biological body horror fact</label>
+      <label><input type="checkbox" value="fact that sounds fake but is real" checked> Fact that sounds fake but is real</label>
+    </div>
+  </div>
+
+  <div class="toggle-row">
+    <label for="evasion-toggle">AI Detection Evasion</label>
+    <input type="checkbox" id="evasion-toggle" checked>
+    <small>Randomizes voice and metadata to appear human-made</small>
+  </div>
+</div>
+
+<div class="card" id="keys-card">
+  <h2>Free API Keys</h2>
+  <p class="card-sub">No credit card needed for any of these.</p>
+
+  <div class="key-group">
+    <div class="key-label-row">
+      <label>Groq API Key (AI Brain — Required)</label>
+      <span class="dot" id="dot-groq"></span>
+    </div>
+    <div class="key-input-row">
+      <input type="password" id="groq-key" placeholder="Get free at console.groq.com">
+      <button class="show-hide" onclick="toggleShow(this)">Show</button>
+    </div>
+    <small class="key-helper">Free forever. Powers all AI features. <a href="https://console.groq.com" target="_blank">Get key →</a></small>
+  </div>
+
+  <div class="key-group">
+    <div class="key-label-row">
+      <label>Pexels API Key (Stock Videos)</label>
+      <span class="dot" id="dot-pexels"></span>
+    </div>
+    <div class="key-input-row">
+      <input type="password" id="pexels-key" placeholder="Get free at pexels.com/api">
+      <button class="show-hide" onclick="toggleShow(this)">Show</button>
+    </div>
+    <small class="key-helper">200 free requests per hour. <a href="https://www.pexels.com/api/" target="_blank">Get key →</a></small>
+  </div>
+
+  <div class="key-group">
+    <div class="key-label-row">
+      <label>Pixabay API Key (Backup Stock)</label>
+      <span class="dot" id="dot-pixabay"></span>
+    </div>
+    <div class="key-input-row">
+      <input type="password" id="pixabay-key" placeholder="Get free at pixabay.com/api/docs">
+      <button class="show-hide" onclick="toggleShow(this)">Show</button>
+    </div>
+    <small class="key-helper">100 free requests per minute. <a href="https://pixabay.com/api/docs/" target="_blank">Get key →</a></small>
+  </div>
+
+  <div style="margin-top:16px">
+    <button class="btn-save" onclick="saveKeys()">Save Keys</button>
+    <span id="save-confirm" style="display:none;color:#00c853;margin-left:12px;font-size:0.85rem">✓ Keys Saved</span>
+  </div>
+</div>
+
+<div class="card" id="generate-card">
+  <h2>Generate Your Videos</h2>
+
+  <div class="slider-group">
+    <div class="slider-label-row">
+      <label>Number of Videos</label>
+      <span id="count-display">10</span>
+    </div>
+    <input type="range" id="count-slider" min="1" max="50" value="10"
+      oninput="updateSlider(this.value)">
+  </div>
+
+  <div class="info-boxes">
+    <div class="info-box">
+      <span class="info-val">1080x1920</span>
+      <span class="info-lbl">Vertical Shorts</span>
+    </div>
+    <div class="info-box">
+      <span class="info-val">$0.00</span>
+      <span class="info-lbl">Total Cost</span>
+    </div>
+    <div class="info-box">
+      <span class="info-val" id="time-estimate">~10 min</span>
+      <span class="info-lbl">Estimated Time</span>
+    </div>
+  </div>
+
+  <button class="btn-generate" id="generate-btn" onclick="generateVideos()">
+    GENERATE 10 VIDEOS
+  </button>
+
+  <p id="generate-error" class="error-msg" style="display:none"></p>
+</div>
+
+<div class="card" id="progress-card" style="display:none">
+  <h2>Factory Running</h2>
+
+  <div class="phases">
+    <div class="phase-row" id="phase-1">
+      <div class="phase-icon" id="icon-1">○</div>
+      <div class="phase-name">Analyzing Style References</div>
+      <div class="phase-status" id="status-1">Waiting</div>
+    </div>
+    <div class="phase-row" id="phase-2">
+      <div class="phase-icon" id="icon-2">○</div>
+      <div class="phase-name">Generating Ideas</div>
+      <div class="phase-status" id="status-2">Waiting</div>
+    </div>
+    <div class="phase-row" id="phase-3">
+      <div class="phase-icon" id="icon-3">○</div>
+      <div class="phase-name">Writing Scripts</div>
+      <div class="phase-status" id="status-3">Waiting</div>
+    </div>
+    <div class="phase-row" id="phase-4">
+      <div class="phase-icon" id="icon-4">○</div>
+      <div class="phase-name">Creating Voices</div>
+      <div class="phase-status" id="status-4">Waiting</div>
+    </div>
+    <div class="phase-row" id="phase-5">
+      <div class="phase-icon" id="icon-5">○</div>
+      <div class="phase-name">Getting Visuals</div>
+      <div class="phase-status" id="status-5">Waiting</div>
+    </div>
+    <div class="phase-row" id="phase-6">
+      <div class="phase-icon" id="icon-6">○</div>
+      <div class="phase-name">Editing Videos</div>
+      <div class="phase-status" id="status-6">Waiting</div>
+    </div>
+    <div class="phase-row" id="phase-7">
+      <div class="phase-icon" id="icon-7">○</div>
+      <div class="phase-name">Packaging Everything</div>
+      <div class="phase-status" id="status-7">Waiting</div>
+    </div>
+  </div>
+
+  <div class="progress-bar">
+    <div class="progress-fill" id="overall-fill" style="width:0%"></div>
+  </div>
+
+  <div class="progress-info">
+    <span id="video-counter">Video 0 of 0</span>
+    <span id="eta-display"></span>
+    <span id="stats-display">Done: 0 | Failed: 0</span>
+  </div>
+</div>
+
+<div class="card" id="results-card" style="display:none">
+  <h2>Your Videos Are Ready</h2>
+
+  <div class="results-stats" id="results-stats"></div>
+
+  <div class="results-actions">
+    <button class="btn-dl-all" id="download-all-btn" onclick="downloadAll()">
+      ⬇ DOWNLOAD ALL VIDEOS (ZIP)
+    </button>
+    <button class="btn-schedule" onclick="downloadSchedule()">
+      📅 UPLOAD SCHEDULE
+    </button>
+  </div>
+
+  <div class="filter-tabs">
+    <button class="filter-tab active" id="filter-all" onclick="filterVideos('all')">All</button>
+    <button class="filter-tab" id="filter-done" onclick="filterVideos('done')">Done</button>
+    <button class="filter-tab" id="filter-failed" onclick="filterVideos('failed')">Failed</button>
+  </div>
+
+  <div class="videos-grid" id="videos-grid"></div>
+</div>
+
+<footer>
+  <p>Built with $0. Zero subscriptions. Zero face.</p>
+  <div class="footer-links">
+    <a href="https://console.groq.com" target="_blank">Get Groq Key</a>
+    <a href="https://www.pexels.com/api/" target="_blank">Get Pexels Key</a>
+    <a href="https://pixabay.com/api/docs/" target="_blank">Get Pixabay Key</a>
+  </div>
+</footer>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -54,7 +54,6 @@ def check_ffmpeg():
                 )
             else:
                 print("Please run install.py first")
-                print("Or install FFmpeg from ffmpeg.org")
     else:
         print("FFmpeg ready")
 
@@ -85,9 +84,9 @@ def create_folders():
 def main():
     print("")
     print("=" * 48)
-    print("  PROJECT PHOENIX")
+    print("  PROJECT PHOENIX v3")
     print("  Faceless Shorts Factory")
-    print("  Starting up...")
+    print("  Clearer Voice. Faster Production.")
     print("=" * 48)
     print("")
 

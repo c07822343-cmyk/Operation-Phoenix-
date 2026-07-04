@@ -5,12 +5,16 @@ import os
 
 def startup():
     print("\n╔══════════════════════════════════════╗")
-    print("║      Project Phoenix Starting        ║")
+    print("║      Project Phoenix v3 Starting     ║")
     print("╚══════════════════════════════════════╝\n")
-    pkgs = ['flask', 'requests', 'edge-tts', 'Pillow']
+    pkgs = ['flask', 'requests', 'edge-tts', 'Pillow',
+            'google-api-python-client',
+            'google-auth-httplib2',
+            'google-auth-oauthlib']
     for p in pkgs:
         subprocess.run(
-            [sys.executable, '-m', 'pip', 'install', '-q', p],
+            [sys.executable, '-m', 'pip',
+             'install', '-q', p],
             capture_output=True
         )
     os.makedirs('output/videos', exist_ok=True)
@@ -20,7 +24,7 @@ def startup():
     )
     status = 'ready' if r.returncode == 0 else 'NOT FOUND'
     print(f"FFmpeg: {status}")
-    print("Phoenix ready at http://localhost:5000\n")
+    print("Phoenix v3 ready at http://localhost:5000\n")
 
 
 startup()
@@ -170,14 +174,19 @@ def dl_all():
     with zipfile.ZipFile(
         buf, 'w', zipfile.ZIP_DEFLATED
     ) as zf:
-        for v in current_pipeline.progress.get('videos', []):
+        for v in current_pipeline.progress.get(
+            'videos', []
+        ):
             if v['status'] == 'done':
                 vp = v.get('video_path')
                 tp = v.get('thumbnail_path')
                 n = v['number']
                 topic = v.get('topic', '')[:20]
                 if vp and os.path.exists(vp):
-                    zf.write(vp, f"video_{n:03d}_{topic}.mp4")
+                    zf.write(
+                        vp,
+                        f"video_{n:03d}_{topic}.mp4"
+                    )
                 if tp and os.path.exists(tp):
                     zf.write(tp, f"thumb_{n:03d}.png")
     buf.seek(0)
@@ -231,7 +240,8 @@ def api_validate():
     if g:
         try:
             r = req.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+                "https://api.groq.com/openai/v1/"
+                "chat/completions",
                 headers={
                     "Authorization": f"Bearer {g}",
                     "Content-Type": "application/json"
@@ -246,7 +256,8 @@ def api_validate():
                 timeout=10
             )
             results['groq'] = (
-                'valid' if r.status_code == 200 else 'invalid'
+                'valid' if r.status_code == 200
+                else 'invalid'
             )
         except Exception:
             results['groq'] = 'invalid'
@@ -261,7 +272,8 @@ def api_validate():
                 timeout=10
             )
             results['pexels'] = (
-                'valid' if r.status_code == 200 else 'invalid'
+                'valid' if r.status_code == 200
+                else 'invalid'
             )
         except Exception:
             results['pexels'] = 'invalid'
@@ -279,12 +291,44 @@ def api_validate():
                 timeout=10
             )
             results['pixabay'] = (
-                'valid' if r.status_code == 200 else 'invalid'
+                'valid' if r.status_code == 200
+                else 'invalid'
             )
         except Exception:
             results['pixabay'] = 'invalid'
 
     return jsonify(results)
+
+
+@app.route('/api/upload-to-youtube', methods=['POST'])
+def upload_to_youtube():
+    try:
+        def do_upload():
+            try:
+                from youtube_uploader import upload_from_batch
+                results = upload_from_batch(
+                    output_dir='output'
+                )
+                print(
+                    f'Upload complete: {len(results)} videos'
+                )
+            except Exception as e:
+                print(f'Upload error: {e}')
+
+        t = threading.Thread(
+            target=do_upload, daemon=True
+        )
+        t.start()
+
+        return jsonify({
+            'status': 'uploading',
+            'message': (
+                'Upload started. '
+                'Check Terminal for progress.'
+            )
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

@@ -25,7 +25,6 @@ def run(pipeline: PhoenixPipeline, count: int):
 
         ideas = ideas[:count]
 
-        # Process up to 3 videos at a time for speed
         semaphore = threading.Semaphore(3)
         results = [None] * len(ideas)
         threads = []
@@ -61,14 +60,11 @@ def run(pipeline: PhoenixPipeline, count: int):
             threads.append(t)
             t.start()
 
-            # Small stagger to avoid hammering APIs
             time.sleep(0.5)
 
-        # Wait for all to complete
         for t in threads:
             t.join()
 
-        # Count results
         for ok in results:
             if ok:
                 pipeline.progress['successful'] += 1
@@ -124,7 +120,9 @@ def _process_one(pipeline, idea, index, total, vinfo):
         )
         if not voice:
             voice = pipeline._silent_audio(
-                script.get('estimated_duration_seconds', 40),
+                script.get(
+                    'estimated_duration_seconds', 40
+                ),
                 vpath
             )
 
@@ -142,6 +140,9 @@ def _process_one(pipeline, idea, index, total, vinfo):
                     'scene_number': k + 1,
                     'duration_seconds': dur / n,
                     'narration': '',
+                    'visual_subject': idea.get(
+                        'visual_potential', ''
+                    ),
                     'visual_description': idea.get(
                         'visual_potential',
                         idea.get('topic', 'dramatic scene')
@@ -156,13 +157,24 @@ def _process_one(pipeline, idea, index, total, vinfo):
             ]
 
         for j, scene in enumerate(scenes):
+            # Use visual_subject for focused search
+            # Fall back to visual_description
+            visual_subject = scene.get(
+                'visual_subject',
+                scene.get('visual_description', '')
+            )
+            visual_description = scene.get(
+                'visual_description',
+                visual_subject
+            )
+
             mp, mt = pipeline._get_media(
-                scene.get(
-                    'visual_description',
-                    idea.get('topic', 'nature')
-                ),
-                idea.get('topic', ''),
-                vdir, j + 1
+                visual_subject=visual_subject,
+                visual_description=visual_description,
+                topic=idea.get('topic', ''),
+                vdir=vdir,
+                snum=j + 1,
+                core_fact=idea.get('core_fact', '')
             )
             scene['media_path'] = mp
             scene['media_type'] = mt

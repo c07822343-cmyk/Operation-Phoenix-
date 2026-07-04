@@ -4,12 +4,13 @@ FPS = 30
 VIDEO_BITRATE = "6M"
 AUDIO_BITRATE = "192k"
 
-TTS_VOICE = "en-US-GuyNeural"
-TTS_RATE = "+8%"
-TTS_PITCH = "-2Hz"
+# Voice settings — slower and clearer
+TTS_VOICE = "en-US-AndrewNeural"
+TTS_RATE = "-10%"
+TTS_PITCH = "-5Hz"
 
 GROQ_MODEL = "llama-3.3-70b-versatile"
-GROQ_MIN_GAP = 2.5
+GROQ_MIN_GAP = 2.0
 GROQ_MAX_RETRIES = 5
 
 SUBTITLE_FONTSIZE = 64

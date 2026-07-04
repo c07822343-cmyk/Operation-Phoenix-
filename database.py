@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import os
+import hashlib
 from datetime import datetime
 from config import DB_PATH, KEYS_PATH
 
@@ -28,6 +29,7 @@ def init_db():
             created_at TEXT DEFAULT '',
             completed_at TEXT DEFAULT ''
         );
+
         CREATE TABLE IF NOT EXISTS videos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             batch_id TEXT NOT NULL,
@@ -41,6 +43,7 @@ def init_db():
             title TEXT DEFAULT '',
             description TEXT DEFAULT '',
             tags TEXT DEFAULT '',
+            hashtags TEXT DEFAULT '',
             pinned_comment TEXT DEFAULT '',
             voice_path TEXT DEFAULT '',
             thumbnail_path TEXT DEFAULT '',
@@ -52,11 +55,40 @@ def init_db():
             created_at TEXT DEFAULT '',
             completed_at TEXT DEFAULT ''
         );
+
         CREATE TABLE IF NOT EXISTS settings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             key_name TEXT UNIQUE NOT NULL,
             value TEXT DEFAULT ''
         );
+
+        CREATE TABLE IF NOT EXISTS fact_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fact_hash TEXT UNIQUE NOT NULL,
+            fact_text TEXT NOT NULL,
+            topic TEXT DEFAULT '',
+            category TEXT DEFAULT '',
+            niche TEXT DEFAULT '',
+            batch_id TEXT DEFAULT '',
+            created_at TEXT DEFAULT ''
+        );
+
+        CREATE TABLE IF NOT EXISTS tag_library (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT UNIQUE NOT NULL,
+            tags TEXT DEFAULT '',
+            hashtags TEXT DEFAULT '',
+            updated_at TEXT DEFAULT ''
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_fact_hash
+            ON fact_history(fact_hash);
+
+        CREATE INDEX IF NOT EXISTS idx_fact_category
+            ON fact_history(category);
+
+        CREATE INDEX IF NOT EXISTS idx_videos_batch
+            ON videos(batch_id);
     """)
     conn.commit()
     conn.close()
@@ -106,7 +138,8 @@ def create_video(batch_id, video_number):
         """INSERT INTO videos
            (batch_id, video_number, created_at)
            VALUES (?, ?, ?)""",
-        (batch_id, video_number, datetime.now().isoformat())
+        (batch_id, video_number,
+         datetime.now().isoformat())
     )
     conn.commit()
     result = cursor.lastrowid
@@ -209,6 +242,182 @@ def load_keys():
         "groq_key": get_setting("groq_key", ""),
         "pexels_key": get_setting("pexels_key", ""),
         "pixabay_key": get_setting("pixabay_key", "")
+    }
+
+
+# ═══════════════════════════════════════
+# FACT HISTORY — Duplicate Prevention
+# ═══════════════════════════════════════
+
+def _hash_fact(fact_text):
+    """Create a hash of a fact for deduplication"""
+    cleaned = fact_text.lower().strip()
+    # Remove common words so similar facts match
+    for word in ['the', 'a', 'an', 'is', 'are', 'was',
+                 'were', 'can', 'could', 'will', 'would']:
+        cleaned = cleaned.replace(f' {word} ', ' ')
+    return hashlib.md5(cleaned.encode()).hexdigest()
+
+
+def save_fact(fact_text, topic, category,
+              niche, batch_id):
+    """Save a fact to the history database"""
+    fact_hash = _hash_fact(fact_text)
+    conn = get_connection()
+    try:
+        conn.execute(
+            """INSERT OR IGNORE INTO fact_history
+               (fact_hash, fact_text, topic, category,
+                niche, batch_id, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (fact_hash, fact_text, topic, category,
+             niche, batch_id, datetime.now().isoformat())
+        )
+        conn.commit()
+    except Exception as e:
+        print(f"[DB] Could not save fact: {e}")
+    finally:
+        conn.close()
+
+
+def is_fact_duplicate(fact_text):
+    """Check if a fact already exists in the database"""
+    fact_hash = _hash_fact(fact_text)
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT id FROM fact_history WHERE fact_hash = ?",
+        (fact_hash,)
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def get_all_used_facts(limit=500):
+    """Get recently used facts to send to AI"""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT fact_text, topic FROM fact_history
+           ORDER BY created_at DESC LIMIT ?""",
+        (limit,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_fact_count():
+    """Get total number of facts generated"""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT COUNT(*) as count FROM fact_history"
+    ).fetchone()
+    conn.close()
+    return row['count'] if row else 0
+
+
+def get_facts_by_category(category):
+    """Get all facts for a specific category"""
+    conn = get_connection()
+    rows = conn.execute(
+        """SELECT fact_text, topic FROM fact_history
+           WHERE category = ?
+           ORDER BY created_at DESC""",
+        (category,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def clear_fact_history():
+    """Clear all fact history (use with caution)"""
+    conn = get_connection()
+    conn.execute("DELETE FROM fact_history")
+    conn.commit()
+    conn.close()
+
+
+# ═══════════════════════════════════════
+# TAG LIBRARY
+# ═══════════════════════════════════════
+
+def save_tags(category, tags, hashtags):
+    """Save generated tags for a category"""
+    conn = get_connection()
+    conn.execute(
+        """INSERT OR REPLACE INTO tag_library
+           (category, tags, hashtags, updated_at)
+           VALUES (?, ?, ?, ?)""",
+        (category,
+         json.dumps(tags),
+         json.dumps(hashtags),
+         datetime.now().isoformat())
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_tags(category):
+    """Get saved tags for a category"""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT tags, hashtags FROM tag_library WHERE category = ?",
+        (category,)
+    ).fetchone()
+    conn.close()
+    if row:
+        return {
+            'tags': json.loads(row['tags'] or '[]'),
+            'hashtags': json.loads(row['hashtags'] or '[]')
+        }
+    return None
+
+
+def get_all_tags():
+    """Get all saved tag sets"""
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT * FROM tag_library ORDER BY category"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_database_stats():
+    """Get overview stats for the dashboard"""
+    conn = get_connection()
+
+    facts = conn.execute(
+        "SELECT COUNT(*) as count FROM fact_history"
+    ).fetchone()['count']
+
+    batches = conn.execute(
+        "SELECT COUNT(*) as count FROM batches"
+    ).fetchone()['count']
+
+    videos = conn.execute(
+        "SELECT COUNT(*) as count FROM videos WHERE status = 'done'"
+    ).fetchone()['count']
+
+    categories = conn.execute(
+        """SELECT category, COUNT(*) as count
+           FROM fact_history
+           GROUP BY category
+           ORDER BY count DESC"""
+    ).fetchall()
+
+    recent = conn.execute(
+        """SELECT topic, category, created_at
+           FROM fact_history
+           ORDER BY created_at DESC LIMIT 10"""
+    ).fetchall()
+
+    conn.close()
+
+    return {
+        'total_facts': facts,
+        'total_batches': batches,
+        'total_videos': videos,
+        'categories': [dict(r) for r in categories],
+        'recent_facts': [dict(r) for r in recent]
     }
 
 

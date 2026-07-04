@@ -1,5 +1,6 @@
 import os
 import time
+import threading
 from pipeline_core import PhoenixPipeline
 
 
@@ -24,6 +25,18 @@ def run(pipeline: PhoenixPipeline, count: int):
 
         ideas = ideas[:count]
 
+        # Process up to 3 videos at a time for speed
+        semaphore = threading.Semaphore(3)
+        results = [None] * len(ideas)
+        threads = []
+
+        def process_with_semaphore(idea, index, vinfo):
+            with semaphore:
+                ok = _process_one(
+                    pipeline, idea, index, count, vinfo
+                )
+                results[index] = ok
+
         for i, idea in enumerate(ideas):
             pipeline._update_eta(i, count)
             pipeline.progress['current_video'] = i + 1
@@ -40,16 +53,27 @@ def run(pipeline: PhoenixPipeline, count: int):
             }
             pipeline.progress['videos'].append(vinfo)
 
-            ok = _process_one(
-                pipeline, idea, i, count, vinfo
+            t = threading.Thread(
+                target=process_with_semaphore,
+                args=(idea, i, vinfo),
+                daemon=True
             )
+            threads.append(t)
+            t.start()
 
+            # Small stagger to avoid hammering APIs
+            time.sleep(0.5)
+
+        # Wait for all to complete
+        for t in threads:
+            t.join()
+
+        # Count results
+        for ok in results:
             if ok:
                 pipeline.progress['successful'] += 1
             else:
                 pipeline.progress['failed'] += 1
-
-            time.sleep(1.5)
 
         pipeline._set_phase(7, "Packaging Everything")
         pipeline._make_schedule()
@@ -89,7 +113,7 @@ def _process_one(pipeline, idea, index, total, vinfo):
         vinfo['title'] = script.get(
             'title', idea.get('topic', '')
         )
-        time.sleep(2)
+        time.sleep(1)
 
         pipeline._set_phase(
             4, f"Creating Voice {index+1}/{total}"
@@ -142,7 +166,7 @@ def _process_one(pipeline, idea, index, total, vinfo):
             )
             scene['media_path'] = mp
             scene['media_type'] = mt
-            time.sleep(0.5)
+            time.sleep(0.2)
 
         thumb = pipeline._thumbnail(
             idea.get('topic', ''), vdir

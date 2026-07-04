@@ -103,7 +103,8 @@ def update_batch(batch_id, **kwargs):
 def create_video(batch_id, video_number):
     conn = get_connection()
     cursor = conn.execute(
-        """INSERT INTO videos (batch_id, video_number, created_at)
+        """INSERT INTO videos
+           (batch_id, video_number, created_at)
            VALUES (?, ?, ?)""",
         (batch_id, video_number, datetime.now().isoformat())
     )

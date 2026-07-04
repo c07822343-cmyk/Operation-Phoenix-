@@ -127,16 +127,23 @@ class PhoenixPipeline:
                         )
                     elif resp.status_code == 429:
                         wait = (attempt + 1) * 20
-                        print(f"[Groq] Rate limited. Waiting {wait}s")
+                        print(
+                            f"[Groq] Rate limited. "
+                            f"Waiting {wait}s"
+                        )
                         time.sleep(wait)
                     elif resp.status_code == 401:
                         print("[Groq] Invalid API key")
                         return None
                     else:
-                        print(f"[Groq] Error {resp.status_code}")
+                        print(
+                            f"[Groq] Error {resp.status_code}"
+                        )
                         time.sleep(10)
                 except requests.exceptions.Timeout:
-                    print(f"[Groq] Timeout attempt {attempt + 1}")
+                    print(
+                        f"[Groq] Timeout attempt {attempt + 1}"
+                    )
                     time.sleep(15)
                 except Exception as e:
                     print(f"[Groq] Exception: {e}")
@@ -277,6 +284,240 @@ class PhoenixPipeline:
             print(f"[Pillow] Error: {e}")
             return None
 
+    # ═══════════════════════════════════════════
+    # SMART SEARCH — The key fix
+    # Extracts real searchable terms from descriptions
+    # ═══════════════════════════════════════════
+
+    def _extract_search_queries(self, visual_description,
+                                 topic, core_fact=""):
+        """
+        Extract multiple specific search queries from
+        a visual description. Returns a list of queries
+        from most specific to most general.
+        This ensures real footage is always found.
+        """
+
+        # Clean up the description
+        desc = visual_description.lower().strip()
+        topic_clean = topic.lower().strip()
+
+        # Common words that make bad search terms
+        filler_words = {
+            "dramatic", "cinematic", "scene", "showing",
+            "footage", "video", "image", "photo", "shot",
+            "close", "view", "perspective", "angle",
+            "extreme", "beautiful", "stunning", "amazing",
+            "incredible", "footage of", "showing a",
+            "image of", "photo of", "video of",
+            "a shot of", "wide shot", "close up",
+            "slow motion", "aerial", "overhead",
+            "dark", "bright", "moody", "atmospheric"
+        }
+
+        queries = []
+
+        # Strategy 1: Extract the main subject noun
+        # from the visual description
+        # Look for animals, objects, places, people
+        animal_terms = [
+            "lion", "tiger", "elephant", "whale",
+            "shark", "eagle", "wolf", "bear", "snake",
+            "octopus", "jellyfish", "dolphin", "gorilla",
+            "cheetah", "leopard", "crocodile", "penguin",
+            "butterfly", "caterpillar", "ant", "bee",
+            "spider", "scorpion", "bat", "owl", "parrot",
+            "salmon", "turtle", "seahorse", "crab",
+            "lobster", "squid", "mantis", "firefly",
+            "dragonfly", "falcon", "hawk", "vulture",
+            "flamingo", "peacock", "chameleon", "gecko",
+            "komodo", "python", "cobra", "manta ray",
+            "great white", "hummingbird", "platypus",
+            "kangaroo", "koala", "panda", "polar bear",
+            "arctic fox", "snow leopard", "jaguar",
+            "rhinoceros", "hippopotamus", "giraffe",
+            "zebra", "wildebeest", "chimpanzee", "orangutan"
+        ]
+
+        space_terms = [
+            "galaxy", "nebula", "star", "planet",
+            "asteroid", "comet", "supernova", "black hole",
+            "moon", "sun", "solar system", "universe",
+            "cosmos", "space", "orbit", "saturn", "jupiter",
+            "mars", "earth from space", "milky way",
+            "aurora", "northern lights", "meteor shower"
+        ]
+
+        nature_terms = [
+            "volcano", "ocean", "waterfall", "mountain",
+            "forest", "desert", "glacier", "canyon",
+            "lightning", "storm", "tornado", "hurricane",
+            "earthquake", "tsunami", "coral reef",
+            "rainforest", "arctic", "tundra", "savanna",
+            "river", "lake", "cave", "cliff", "island",
+            "underwater", "deep sea", "jungle"
+        ]
+
+        science_terms = [
+            "microscope", "microscopic", "bacteria",
+            "virus", "cell", "dna", "atom", "molecule",
+            "crystal", "chemical reaction", "explosion",
+            "laser", "electricity", "magnetic", "plasma",
+            "laboratory", "experiment", "brain", "heart",
+            "blood", "neuron", "skeleton", "muscle",
+            "eye", "ear", "hand", "dna strand"
+        ]
+
+        history_terms = [
+            "pyramid", "colosseum", "ancient rome",
+            "ancient egypt", "medieval castle", "viking",
+            "samurai", "gladiator", "greek temple",
+            "stonehenge", "parthenon", "ancient ruins",
+            "old war", "world war", "soldier", "battle",
+            "historical map", "old ship", "ancient city"
+        ]
+
+        food_terms = [
+            "cooking", "food", "kitchen", "restaurant",
+            "chef", "ingredients", "spices", "bread",
+            "chocolate", "coffee", "wine", "cheese",
+            "sushi", "pizza", "burger", "fruit",
+            "vegetables", "meat", "seafood", "dessert"
+        ]
+
+        psychology_terms = [
+            "brain", "mind", "thinking", "meditation",
+            "stress", "anxiety", "happiness", "crowd",
+            "people walking", "human behavior",
+            "social interaction", "face expression",
+            "eye contact", "body language"
+        ]
+
+        tech_terms = [
+            "computer", "robot", "artificial intelligence",
+            "circuit board", "data center", "server",
+            "smartphone", "coding", "programming",
+            "network", "satellite", "drone", "3d printing",
+            "virtual reality", "electric car", "solar panel"
+        ]
+
+        all_specific = (
+            animal_terms + space_terms + nature_terms +
+            science_terms + history_terms + food_terms +
+            psychology_terms + tech_terms
+        )
+
+        # Find specific terms in description
+        found_specific = []
+        for term in all_specific:
+            if term in desc or term in topic_clean:
+                found_specific.append(term)
+
+        # Build queries from most to least specific
+        if found_specific:
+            primary = found_specific[0]
+
+            # Query 1: Most specific — subject + action
+            if "underwater" in desc or "ocean" in desc:
+                queries.append(f"{primary} underwater")
+            elif "close" in desc or "macro" in desc:
+                queries.append(f"{primary} close up")
+            elif "wild" in desc or "nature" in desc:
+                queries.append(f"{primary} wildlife")
+            elif "space" in desc or "cosmos" in desc:
+                queries.append(f"{primary} space")
+            else:
+                queries.append(f"{primary} nature")
+
+            # Query 2: Just the subject
+            queries.append(primary)
+
+            # Query 3: Subject with high quality modifier
+            queries.append(f"{primary} 4k")
+
+            if len(found_specific) > 1:
+                queries.append(found_specific[1])
+
+        # Extract topic words for broader searches
+        topic_words = [
+            w for w in topic_clean.split()
+            if len(w) > 3
+            and w not in filler_words
+            and w not in {
+                "this", "that", "with", "from",
+                "they", "them", "their", "have",
+                "will", "would", "could", "should",
+                "than", "then", "when", "what",
+                "which", "while", "where", "there"
+            }
+        ]
+
+        if topic_words:
+            queries.append(' '.join(topic_words[:2]))
+            queries.append(topic_words[0])
+
+        # Category fallbacks based on niche
+        niche_lower = self.niche.lower()
+        if "animal" in niche_lower or "nature" in niche_lower:
+            queries.extend([
+                "wildlife nature", "animal close up",
+                "nature documentary"
+            ])
+        elif "space" in niche_lower or "universe" in niche_lower:
+            queries.extend([
+                "space galaxy", "nebula stars",
+                "universe cosmos"
+            ])
+        elif "history" in niche_lower:
+            queries.extend([
+                "historical", "ancient ruins", "old world"
+            ])
+        elif "science" in niche_lower:
+            queries.extend([
+                "science laboratory", "microscopic",
+                "scientific experiment"
+            ])
+        elif "psychology" in niche_lower or "mind" in niche_lower:
+            queries.extend([
+                "human brain", "people thinking",
+                "meditation mind"
+            ])
+        elif "food" in niche_lower:
+            queries.extend([
+                "cooking food", "kitchen chef",
+                "ingredients"
+            ])
+        elif "technology" in niche_lower or "tech" in niche_lower:
+            queries.extend([
+                "technology computer", "robot ai",
+                "digital future"
+            ])
+        else:
+            queries.extend([
+                "nature aerial", "timelapse",
+                "people city", "abstract background"
+            ])
+
+        # Always have these as last resort
+        queries.extend([
+            "nature", "sky", "earth",
+            "abstract", "light"
+        ])
+
+        # Remove duplicates while keeping order
+        seen = set()
+        unique = []
+        for q in queries:
+            q = q.strip()
+            if q and q not in seen and len(q) > 1:
+                seen.add(q)
+                unique.append(q)
+
+        print(f"[Search] Queries for '{topic}': "
+              f"{unique[:4]}")
+
+        return unique
+
     def _analyze_style(self):
         titles = []
         channels = []
@@ -381,10 +622,14 @@ class PhoenixPipeline:
             "example_hooks": [
                 f"This {self.niche} fact will change "
                 f"how you see the world.",
-                f"Nobody talks about this {self.niche} secret.",
-                f"The truth about {self.niche} is disturbing.",
-                f"What they never told you about {self.niche}.",
-                f"This changed everything about {self.niche}."
+                f"Nobody talks about this "
+                f"{self.niche} secret.",
+                f"The truth about {self.niche} "
+                f"is disturbing.",
+                f"What they never told you about "
+                f"{self.niche}.",
+                f"This changed everything about "
+                f"{self.niche}."
             ]
         }
 
@@ -424,7 +669,8 @@ class PhoenixPipeline:
             f"for a {self.niche} YouTube Shorts channel.\n"
             f"Audience: {self.audience}\n"
             f"Use formats: {archetypes}\n"
-            f"Topics: {', '.join(topics[:5]) or self.niche}\n\n"
+            f"Topics: "
+            f"{', '.join(topics[:5]) or self.niche}\n\n"
             f"Each item must have exactly:\n"
             f"topic (3-6 words),\n"
             f"category (animal/history/science/body/space/"
@@ -433,7 +679,10 @@ class PhoenixPipeline:
             f"core_fact (one shocking verifiable sentence),\n"
             f"archetype (the format name),\n"
             f"shock_factor (number 1-10),\n"
-            f"visual_potential (footage description),\n"
+            f"visual_potential (the MAIN SUBJECT to film "
+            f"— one or two specific nouns only. "
+            f"Example: lion, ocean wave, human brain, "
+            f"ancient pyramid. NOT a sentence.),\n"
             f"target_emotion (awe/disgust/surprise/"
             f"curiosity/fear/wonder)"
         )
@@ -457,9 +706,12 @@ class PhoenixPipeline:
         sys_p = (
             f"You write viral YouTube Shorts scripts.\n"
             f"Niche: {self.niche} Tone: {self.tone}\n"
-            f"Hook: {sg.get('hook_style', 'Shocking claim')}\n"
-            f"Use: {', '.join(sg.get('language_patterns', []))}\n"
-            f"Avoid: {', '.join(sg.get('avoid_these', []))}\n"
+            f"Hook: "
+            f"{sg.get('hook_style', 'Shocking claim')}\n"
+            f"Use: "
+            f"{', '.join(sg.get('language_patterns', []))}\n"
+            f"Avoid: "
+            f"{', '.join(sg.get('avoid_these', []))}\n"
             f"Examples: "
             f"{', '.join(sg.get('example_hooks', [])[:2])}\n"
             f"0-3s HOOK: Shocking claim open loop\n"
@@ -478,14 +730,24 @@ class PhoenixPipeline:
             f"{idea.get('archetype', 'single shocking fact')}\n"
             f"Emotion: "
             f"{idea.get('target_emotion', 'surprise')}\n"
-            f"Visuals: {idea.get('visual_potential', '')}\n\n"
+            f"Main visual subject: "
+            f"{idea.get('visual_potential', '')}\n\n"
             f"Return JSON with:\n"
             f"hook, full_script, word_count,\n"
             f"estimated_duration_seconds (20-58),\n"
-            f"scenes (array 3-6 each with scene_number,\n"
-            f"duration_seconds, narration,\n"
-            f"visual_description, text_overlay,\n"
-            f"camera_movement, sfx),\n"
+            f"scenes (array 3-6 each with:\n"
+            f"  scene_number,\n"
+            f"  duration_seconds,\n"
+            f"  narration,\n"
+            f"  visual_subject (ONE or TWO specific nouns "
+            f"to search for stock footage. "
+            f"Examples: lion, ocean, ancient ruins, brain. "
+            f"Keep it simple and searchable.),\n"
+            f"  visual_description (full cinematic "
+            f"description for context),\n"
+            f"  text_overlay (2-4 words ALL CAPS),\n"
+            f"  camera_movement,\n"
+            f"  sfx),\n"
             f"key_words (array 3-5),\n"
             f"title (under 60 chars),\n"
             f"description (100-200 words),\n"
@@ -522,8 +784,9 @@ class PhoenixPipeline:
             if not self._safe_exists(raw):
                 return None
 
-            # Apply audio enhancement for clarity
-            enhanced = output_path.replace('.mp3', '_enhanced.mp3')
+            enhanced = output_path.replace(
+                '.mp3', '_enhanced.mp3'
+            )
             enhanced_ok = self._enhance_audio(raw, enhanced)
 
             if enhanced_ok and self._safe_exists(enhanced):
@@ -547,10 +810,6 @@ class PhoenixPipeline:
             return None
 
     def _enhance_audio(self, inp, out):
-        """
-        Enhance voice clarity.
-        Normalize volume, reduce noise, boost clarity.
-        """
         filters = (
             "highpass=f=100,"
             "lowpass=f=12000,"
@@ -569,7 +828,6 @@ class PhoenixPipeline:
         ], timeout=30)
 
     def _humanize(self, inp, out):
-        """Subtle pitch and speed variation for AI detection evasion"""
         pitch = random.uniform(-0.02, 0.02)
         speed = random.uniform(0.99, 1.01)
         shifted = int(48000 * (1 + pitch))
@@ -589,39 +847,83 @@ class PhoenixPipeline:
             out
         ], timeout=60)
 
-    def _get_media(self, desc, topic, vdir, snum):
-        sources = [
-            lambda d=desc, v=vdir, n=snum: (
-                self._pexels_video(d, v, n)
-            ),
-            lambda d=desc, v=vdir, n=snum: (
-                self._pixabay_video(d, v, n)
-            ),
-            lambda d=desc, v=vdir, n=snum: (
-                self._pexels_image(d, v, n)
-            ),
-            lambda d=desc, v=vdir, n=snum: (
-                self._pixabay_image(d, v, n)
-            ),
-            lambda d=desc, v=vdir, n=snum: (
-                self._pollinations(d, v, n)
-            ),
-            lambda d=topic, v=vdir, n=snum: (
-                self._pollinations(d, v, n)
-            ),
-        ]
-        for fn in sources:
-            try:
-                r = fn()
-                if self._safe_exists(r):
-                    ext = os.path.splitext(r)[1].lower()
-                    return r, (
-                        'video' if ext == '.mp4' else 'image'
-                    )
-            except Exception as e:
-                print(f"[Media] Error: {e}")
+    def _get_media(self, visual_subject,
+                   visual_description,
+                   topic, vdir, snum,
+                   core_fact=""):
+        """
+        Smart media fetcher with multiple fallback queries.
+        Always finds real relevant footage.
+        """
+        queries = self._extract_search_queries(
+            visual_description=visual_description,
+            topic=topic,
+            core_fact=core_fact
+        )
+
+        # If we have a direct visual_subject use it first
+        if visual_subject and len(visual_subject) > 1:
+            subject_queries = [
+                visual_subject,
+                f"{visual_subject} close up",
+                f"{visual_subject} nature",
+                f"{visual_subject} 4k"
+            ]
+            queries = subject_queries + queries
+
+        # Remove duplicates
+        seen = set()
+        unique_queries = []
+        for q in queries:
+            q = q.strip()
+            if q and q not in seen:
+                seen.add(q)
+                unique_queries.append(q)
+
+        # Try each query with each source
+        for query in unique_queries[:8]:
+            print(f"[Media] Trying: '{query}'")
+
+            # Try video first
+            result = self._try_video(query, vdir, snum)
+            if result:
+                print(f"[Media] Found video: '{query}'")
+                return result, 'video'
+
+            # Try image
+            result = self._try_image(query, vdir, snum)
+            if result:
+                print(f"[Media] Found image: '{query}'")
+                return result, 'image'
+
             time.sleep(0.2)
+
+        # Last resort: AI generated image
+        print(f"[Media] Using AI image for: '{topic}'")
+        result = self._pollinations(
+            f"{topic} cinematic dramatic",
+            vdir, snum
+        )
+        if result:
+            return result, 'image'
+
         return None, None
+
+    def _try_video(self, query, vdir, snum):
+        """Try Pexels then Pixabay for video"""
+        result = self._pexels_video(query, vdir, snum)
+        if result:
+            return result
+        result = self._pixabay_video(query, vdir, snum)
+        return result
+
+    def _try_image(self, query, vdir, snum):
+        """Try Pexels then Pixabay for image"""
+        result = self._pexels_image(query, vdir, snum)
+        if result:
+            return result
+        result = self._pixabay_image(query, vdir, snum)
+        return result
 
     def _pexels_video(self, q, d, n):
         if not self.pexels_key:
@@ -660,7 +962,7 @@ class PhoenixPipeline:
             )
             with open(p, 'wb') as f:
                 f.write(resp.content)
-            return p
+            return p if self._safe_exists(p) else None
         except Exception as e:
             print(f"[Pexels Video] {e}")
             return None
@@ -697,7 +999,7 @@ class PhoenixPipeline:
             resp = requests.get(url, timeout=45)
             with open(p, 'wb') as f:
                 f.write(resp.content)
-            return p
+            return p if self._safe_exists(p) else None
         except Exception as e:
             print(f"[Pixabay Video] {e}")
             return None
@@ -728,7 +1030,7 @@ class PhoenixPipeline:
             )
             with open(p, 'wb') as f:
                 f.write(resp.content)
-            return p
+            return p if self._safe_exists(p) else None
         except Exception as e:
             print(f"[Pexels Image] {e}")
             return None
@@ -764,7 +1066,7 @@ class PhoenixPipeline:
             resp = requests.get(url, timeout=20)
             with open(p, 'wb') as f:
                 f.write(resp.content)
-            return p
+            return p if self._safe_exists(p) else None
         except Exception as e:
             print(f"[Pixabay Image] {e}")
             return None
@@ -775,10 +1077,13 @@ class PhoenixPipeline:
                 f"{desc} cinematic dramatic 8k "
                 f"professional dark moody vertical"
             )
-            enc = urllib.parse.quote(prompt[:400], safe='')
+            enc = urllib.parse.quote(
+                prompt[:400], safe=''
+            )
             seed = random.randint(1, 999999)
             url = (
-                f"https://image.pollinations.ai/prompt/{enc}"
+                f"https://image.pollinations.ai"
+                f"/prompt/{enc}"
                 f"?width=1080&height=1920"
                 f"&nologo=true&seed={seed}&model=flux"
             )
@@ -791,7 +1096,9 @@ class PhoenixPipeline:
                     )
                     if (resp.status_code == 200 and
                             len(resp.content) > 5000):
-                        p = os.path.join(d, f"s{n}_ai.png")
+                        p = os.path.join(
+                            d, f"s{n}_ai.png"
+                        )
                         with open(p, 'wb') as f:
                             f.write(resp.content)
                         return p
@@ -813,11 +1120,15 @@ class PhoenixPipeline:
                 f"{topic} dark moody background vibrant "
                 f"colors 8k no text no words no letters"
             )
-            enc = urllib.parse.quote(prompt[:400], safe='')
+            enc = urllib.parse.quote(
+                prompt[:400], safe=''
+            )
             url = (
-                f"https://image.pollinations.ai/prompt/{enc}"
+                f"https://image.pollinations.ai"
+                f"/prompt/{enc}"
                 f"?width=1280&height=720&nologo=true"
-                f"&seed={random.randint(1, 999999)}&model=flux"
+                f"&seed={random.randint(1, 999999)}"
+                f"&model=flux"
             )
             for attempt in range(2):
                 try:
@@ -832,7 +1143,9 @@ class PhoenixPipeline:
                             f.write(resp.content)
                         return out
                 except Exception as e:
-                    print(f"[Thumb] Attempt {attempt+1}: {e}")
+                    print(
+                        f"[Thumb] Attempt {attempt+1}: {e}"
+                    )
                 time.sleep(3)
         except Exception as e:
             print(f"[Thumb] Error: {e}")
@@ -1049,7 +1362,9 @@ class PhoenixPipeline:
                 'upload_date': t.strftime('%Y-%m-%d'),
                 'upload_time': t.strftime('%I:%M %p'),
                 'video_file': v.get('video_path', ''),
-                'thumbnail_file': v.get('thumbnail_path', '')
+                'thumbnail_file': v.get(
+                    'thumbnail_path', ''
+                )
             })
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         p = os.path.join(

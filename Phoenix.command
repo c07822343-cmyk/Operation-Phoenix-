@@ -7,8 +7,8 @@ clear
 
 echo ""
 echo "╔══════════════════════════════════════════╗"
-echo "║        🔥 PROJECT PHOENIX                ║"
-echo "║        Faceless Shorts Factory           ║"
+echo "║      🔥 PROJECT PHOENIX v3               ║"
+echo "║      Clearer Voice. Faster Production.   ║"
 echo "║                                          ║"
 echo "║  Browser opens automatically.            ║"
 echo "║  Keep this window open while using.      ║"
@@ -25,11 +25,11 @@ if ! command -v python3 &>/dev/null; then
 fi
 
 if ! command -v ffmpeg &>/dev/null; then
-    echo "FFmpeg not found. Running installer first..."
+    echo "FFmpeg not found. Running installer..."
     python3 install.py
 fi
 
-echo "Starting Phoenix..."
+echo "Starting Phoenix v3..."
 echo ""
 
 python3 run.py

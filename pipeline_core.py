@@ -286,7 +286,9 @@ class PhoenixPipeline:
                 continue
             try:
                 if 'watch?v=' in url:
-                    vid = url.split('watch?v=')[1].split('&')[0]
+                    vid = url.split(
+                        'watch?v='
+                    )[1].split('&')[0]
                     r = requests.get(
                         f"https://www.youtube.com/oembed"
                         f"?url=https://www.youtube.com/"
@@ -356,28 +358,29 @@ class PhoenixPipeline:
             return result
         return {
             "hook_style": "Start with the shocking claim directly",
-            "pacing": "Fast paced short punchy sentences",
+            "pacing": "Clear and deliberate with pauses",
             "tone_words": [
-                "shocking", "direct", "urgent", "real", "raw"
+                "clear", "direct", "shocking", "real", "calm"
             ],
             "typical_structure": "Hook then context then payoff",
             "language_patterns": [
-                "And it gets worse",
-                "Here is the part nobody talks about",
-                "Wait until you hear this",
-                "This is where it gets insane",
-                "Nobody knows this"
+                "And it gets stranger",
+                "Here is what nobody tells you",
+                "Wait until you hear this part",
+                "This is where it gets wild",
+                "Nobody talks about this"
             ],
             "topics_covered": [self.niche] * 10,
-            "what_makes_viral": "Shock value plus truth",
-            "content_guidelines": "Direct fast and shocking",
+            "what_makes_viral": "Clarity plus shock value",
+            "content_guidelines": "Speak clearly and slowly",
             "avoid_these": [
                 "Did you know", "Fun fact",
                 "Hey guys", "Buckle up",
                 "Like and subscribe"
             ],
             "example_hooks": [
-                f"This {self.niche} fact ruins your day.",
+                f"This {self.niche} fact will change "
+                f"how you see the world.",
                 f"Nobody talks about this {self.niche} secret.",
                 f"The truth about {self.niche} is disturbing.",
                 f"What they never told you about {self.niche}.",
@@ -463,7 +466,9 @@ class PhoenixPipeline:
             f"3-8s CONTEXT: Why more shocking\n"
             f"8-15s ESCALATION: Stack details\n"
             f"15s+ PAYOFF: Biggest shock haunting kicker\n"
-            f"Short sentences. 80-180 words total.\n"
+            f"Write clearly. Speak slowly and deliberately.\n"
+            f"Short sentences with natural pauses.\n"
+            f"80-160 words total for clear delivery.\n"
             f"Return only valid JSON. No other text."
         )
         usr_p = (
@@ -476,7 +481,7 @@ class PhoenixPipeline:
             f"Visuals: {idea.get('visual_potential', '')}\n\n"
             f"Return JSON with:\n"
             f"hook, full_script, word_count,\n"
-            f"estimated_duration_seconds (15-58),\n"
+            f"estimated_duration_seconds (20-58),\n"
             f"scenes (array 3-6 each with scene_number,\n"
             f"duration_seconds, narration,\n"
             f"visual_description, text_overlay,\n"
@@ -499,13 +504,13 @@ class PhoenixPipeline:
             import edge_tts
 
             async def _do_tts():
-                c = edge_tts.Communicate(
+                communicate = edge_tts.Communicate(
                     text,
                     voice=TTS_VOICE,
                     rate=TTS_RATE,
                     pitch=TTS_PITCH
                 )
-                await c.save(raw)
+                await communicate.save(raw)
 
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -517,6 +522,18 @@ class PhoenixPipeline:
             if not self._safe_exists(raw):
                 return None
 
+            # Apply audio enhancement for clarity
+            enhanced = output_path.replace('.mp3', '_enhanced.mp3')
+            enhanced_ok = self._enhance_audio(raw, enhanced)
+
+            if enhanced_ok and self._safe_exists(enhanced):
+                if self.enable_evasion:
+                    ok = self._humanize(enhanced, output_path)
+                    if ok and self._safe_exists(output_path):
+                        return output_path
+                shutil.copy2(enhanced, output_path)
+                return output_path
+
             if self.enable_evasion:
                 ok = self._humanize(raw, output_path)
                 if ok and self._safe_exists(output_path):
@@ -524,37 +541,74 @@ class PhoenixPipeline:
 
             shutil.copy2(raw, output_path)
             return output_path
+
         except Exception as e:
             print(f"[Voice] Error: {e}")
             return None
 
-    def _humanize(self, inp, out):
-        pitch = random.uniform(-0.03, 0.03)
-        speed = random.uniform(0.98, 1.02)
-        shifted = int(44100 * (1 + pitch))
+    def _enhance_audio(self, inp, out):
+        """
+        Enhance voice clarity.
+        Normalize volume, reduce noise, boost clarity.
+        """
         filters = (
-            f"asetrate={shifted},"
-            f"aresample=44100,"
-            f"atempo={speed},"
-            f"aecho=0.8:0.7:20|30:0.04|0.03,"
-            f"highpass=f=80,"
-            f"lowpass=f=14000,"
-            f"loudnorm=I=-16:TP=-1.5:LRA=11"
+            "highpass=f=100,"
+            "lowpass=f=12000,"
+            "equalizer=f=3000:t=o:w=2:g=3,"
+            "loudnorm=I=-14:TP=-1.5:LRA=7,"
+            "acompressor=threshold=-20dB:"
+            "ratio=3:attack=5:release=100:makeup=2"
         )
         return self._run_ffmpeg([
             'ffmpeg', '-y', '-i', inp,
             '-af', filters,
-            '-c:a', 'libmp3lame', '-b:a', '192k', out
+            '-c:a', 'libmp3lame',
+            '-b:a', '192k',
+            '-ar', '48000',
+            out
+        ], timeout=30)
+
+    def _humanize(self, inp, out):
+        """Subtle pitch and speed variation for AI detection evasion"""
+        pitch = random.uniform(-0.02, 0.02)
+        speed = random.uniform(0.99, 1.01)
+        shifted = int(48000 * (1 + pitch))
+        filters = (
+            f"asetrate={shifted},"
+            f"aresample=48000,"
+            f"atempo={speed},"
+            f"aecho=0.9:0.85:15|25:0.03|0.02,"
+            f"loudnorm=I=-14:TP=-1.5:LRA=7"
+        )
+        return self._run_ffmpeg([
+            'ffmpeg', '-y', '-i', inp,
+            '-af', filters,
+            '-c:a', 'libmp3lame',
+            '-b:a', '192k',
+            '-ar', '48000',
+            out
         ], timeout=60)
 
     def _get_media(self, desc, topic, vdir, snum):
         sources = [
-            lambda d=desc, v=vdir, n=snum: self._pexels_video(d, v, n),
-            lambda d=desc, v=vdir, n=snum: self._pixabay_video(d, v, n),
-            lambda d=desc, v=vdir, n=snum: self._pexels_image(d, v, n),
-            lambda d=desc, v=vdir, n=snum: self._pixabay_image(d, v, n),
-            lambda d=desc, v=vdir, n=snum: self._pollinations(d, v, n),
-            lambda d=topic, v=vdir, n=snum: self._pollinations(d, v, n),
+            lambda d=desc, v=vdir, n=snum: (
+                self._pexels_video(d, v, n)
+            ),
+            lambda d=desc, v=vdir, n=snum: (
+                self._pixabay_video(d, v, n)
+            ),
+            lambda d=desc, v=vdir, n=snum: (
+                self._pexels_image(d, v, n)
+            ),
+            lambda d=desc, v=vdir, n=snum: (
+                self._pixabay_image(d, v, n)
+            ),
+            lambda d=desc, v=vdir, n=snum: (
+                self._pollinations(d, v, n)
+            ),
+            lambda d=topic, v=vdir, n=snum: (
+                self._pollinations(d, v, n)
+            ),
         ]
         for fn in sources:
             try:
@@ -566,7 +620,7 @@ class PhoenixPipeline:
                     )
             except Exception as e:
                 print(f"[Media] Error: {e}")
-            time.sleep(0.3)
+            time.sleep(0.2)
         return None, None
 
     def _pexels_video(self, q, d, n):
@@ -581,7 +635,7 @@ class PhoenixPipeline:
                     "per_page": 5,
                     "orientation": "portrait"
                 },
-                timeout=15
+                timeout=10
             )
             if r.status_code != 200:
                 return None
@@ -590,7 +644,10 @@ class PhoenixPipeline:
                 return None
             v = random.choice(vids)
             files = v.get('video_files', [])
-            hd = [f for f in files if f.get('height', 0) >= 720]
+            hd = [
+                f for f in files
+                if f.get('height', 0) >= 720
+            ]
             chosen = (
                 random.choice(hd if hd else files)
                 if files else None
@@ -598,7 +655,9 @@ class PhoenixPipeline:
             if not chosen:
                 return None
             p = os.path.join(d, f"s{n}_vid.mp4")
-            resp = requests.get(chosen['link'], timeout=60)
+            resp = requests.get(
+                chosen['link'], timeout=45
+            )
             with open(p, 'wb') as f:
                 f.write(resp.content)
             return p
@@ -618,7 +677,7 @@ class PhoenixPipeline:
                     "per_page": 5,
                     "safesearch": "true"
                 },
-                timeout=15
+                timeout=10
             )
             if r.status_code != 200:
                 return None
@@ -635,7 +694,7 @@ class PhoenixPipeline:
             if not url:
                 return None
             p = os.path.join(d, f"s{n}_vid.mp4")
-            resp = requests.get(url, timeout=60)
+            resp = requests.get(url, timeout=45)
             with open(p, 'wb') as f:
                 f.write(resp.content)
             return p
@@ -655,7 +714,7 @@ class PhoenixPipeline:
                     "per_page": 5,
                     "orientation": "portrait"
                 },
-                timeout=15
+                timeout=10
             )
             if r.status_code != 200:
                 return None
@@ -665,7 +724,7 @@ class PhoenixPipeline:
             p = os.path.join(d, f"s{n}_img.jpg")
             resp = requests.get(
                 random.choice(photos)['src']['large2x'],
-                timeout=30
+                timeout=20
             )
             with open(p, 'wb') as f:
                 f.write(resp.content)
@@ -687,7 +746,7 @@ class PhoenixPipeline:
                     "image_type": "photo",
                     "safesearch": "true"
                 },
-                timeout=15
+                timeout=10
             )
             if r.status_code != 200:
                 return None
@@ -702,7 +761,7 @@ class PhoenixPipeline:
             if not url:
                 return None
             p = os.path.join(d, f"s{n}_img.jpg")
-            resp = requests.get(url, timeout=30)
+            resp = requests.get(url, timeout=20)
             with open(p, 'wb') as f:
                 f.write(resp.content)
             return p
@@ -723,12 +782,12 @@ class PhoenixPipeline:
                 f"?width=1080&height=1920"
                 f"&nologo=true&seed={seed}&model=flux"
             )
-            for attempt in range(3):
+            for attempt in range(2):
                 try:
                     resp = requests.get(
                         url,
                         headers={"User-Agent": "Mozilla/5.0"},
-                        timeout=90
+                        timeout=45
                     )
                     if (resp.status_code == 200 and
                             len(resp.content) > 5000):
@@ -737,8 +796,11 @@ class PhoenixPipeline:
                             f.write(resp.content)
                         return p
                 except Exception as e:
-                    print(f"[Pollinations] Attempt {attempt+1}: {e}")
-                time.sleep(5)
+                    print(
+                        f"[Pollinations] "
+                        f"Attempt {attempt+1}: {e}"
+                    )
+                time.sleep(3)
         except Exception as e:
             print(f"[Pollinations] Error: {e}")
         return None
@@ -757,12 +819,12 @@ class PhoenixPipeline:
                 f"?width=1280&height=720&nologo=true"
                 f"&seed={random.randint(1, 999999)}&model=flux"
             )
-            for attempt in range(3):
+            for attempt in range(2):
                 try:
                     resp = requests.get(
                         url,
                         headers={"User-Agent": "Mozilla/5.0"},
-                        timeout=90
+                        timeout=45
                     )
                     if (resp.status_code == 200 and
                             len(resp.content) > 5000):
@@ -771,11 +833,12 @@ class PhoenixPipeline:
                         return out
                 except Exception as e:
                     print(f"[Thumb] Attempt {attempt+1}: {e}")
-                time.sleep(5)
+                time.sleep(3)
         except Exception as e:
             print(f"[Thumb] Error: {e}")
         return self._pillow_thumbnail(topic, out)
-            def _build_video(self, scenes, voice_path,
+
+    def _build_video(self, scenes, voice_path,
                       output_path, vdir,
                       script_text, key_words):
         clips = []
@@ -881,7 +944,9 @@ class PhoenixPipeline:
                 cur = vcd
 
         sub = os.path.join(vdir, "subbed.mp4")
-        if self._burn_subs(cur, script_text, key_words, sub):
+        if self._burn_subs(
+            cur, script_text, key_words, sub
+        ):
             if self._safe_exists(sub):
                 cur = sub
 
@@ -897,7 +962,7 @@ class PhoenixPipeline:
 
         ok = self._run_ffmpeg([
             'ffmpeg', '-y', '-i', cur,
-            '-c:v', 'libx264', '-preset', 'medium',
+            '-c:v', 'libx264', '-preset', 'fast',
             '-crf', '20', '-b:v', VIDEO_BITRATE,
             '-maxrate', '8M', '-bufsize', '16M',
             '-c:a', 'aac', '-b:a', AUDIO_BITRATE,

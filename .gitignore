@@ -20,6 +20,7 @@ temp/
 *.db
 keys.json
 token.pickle
+client_secrets.json
 .DS_Store
 Thumbs.db
 desktop.ini
